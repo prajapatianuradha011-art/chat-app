@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, session, redirect
+from flask import Flask, render_templates, request, session, redirect
 from flask_socketio import SocketIO, emit
 
 app = Flask(__name__)
@@ -18,14 +18,14 @@ def login():
         session['username'] = username
         return redirect('/chat')
 
-    return render_template('login.html')
+    return render_templates('login.html')
 
 
 @app.route('/chat')
 def chat():
     if 'username' not in session:
         return redirect('/')
-    return render_template('index.html', username=session['username'])
+    return render_templates('index.html', username=session['username'])
 
 
 @socketio.on('connect')
@@ -57,4 +57,3 @@ def handle_message(data):
 
 if __name__ == "__main__":
     socketio.run(app)
-    
