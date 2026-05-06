@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>WhatsApp Chat</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+</head>
+<body>
+
+<div class="chat-container">
+
+    <!-- Header -->
+    <div class="header">
+        <h3>💬 WhatsApp Clone</h3>
+        <input id="username" placeholder="Your name" />
+    </div>
+
+    <!-- Chat Area -->
+    <div id="chat-box">
+        <ul id="messages"></ul>
+    </div>
+
+    <!-- Input Area -->
+    <div class="input-area">
+        <input id="message" placeholder="Type a message..." />
+        <button onclick="sendMessage()">➤</button>
+    </div>
+
+</div>
+
+<script>
+    var socket = io();
+
+    socket.on('message', function(data){
+        var item = document.createElement('li');
+        var myName = document.getElementById('username').value;
+
+        if(data.username === myName){
+            item.className = "my-message";
+        } else {
+            item.className = "other-message";
+        }
+
+        item.innerHTML = "<span>" + data.msg + "</span><br><small>" + data.username + "</small>";
+
+        document.getElementById('messages').appendChild(item);
+
+        // Auto scroll
+        var chatBox = document.getElementById('chat-box');
+        chatBox.scrollTop = chatBox.scrollHeight;
+    });
+
+    function sendMessage(){
+        var msg = document.getElementById('message').value;
+        var username = document.getElementById('username').value;
+
+        if(msg.trim() === "" || username.trim() === "") return;
+
+        socket.send({
+            username: username,
+            msg: msg
+        });
+
+        document.getElementById('message').value = '';
+    }
+</script>
+
+</body>
+</html>
