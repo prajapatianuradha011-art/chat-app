@@ -9,6 +9,14 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
+@app.get("/")
+def home():
+    return {"message": "Chat Backend Running Successfully"}
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+
 # CORS
 app.add_middleware(
     CORSMiddleware,
