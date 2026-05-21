@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WhatsApp Chat</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+</head>
+<body>
+
+<div class="chat-container">
+
+    <!-- Header -->
+    <div class="header">
+        <h3>💬 WhatsApp Clone</h3>
+        <input id="username" placeholder="Your name" />
+        <div id="users-box">
+            <a href="/logout" class="logout-btn">
+    🔓 Logout
+</a>
+    <h4>🟢 Online Users</h4>
+    <ul id="users"></ul>
+</div>
+    </div>
+
+    <!-- Chat Area -->
+    <div id="chat-box">
+        <div id="typing-status"></div>
+        <ul id="messages"></ul>
+        <ul id="messages">
+    {% for msg in messages %}
+    <li class="other-message">
+        <span>{{ msg[1] }}</span>
+        <div class="msg-info">
+            <small class="time">{{ msg[2] }}</small>
+        </div>
+    </li>
+{% endfor %}
+</ul>
+    </div>
+
+    <!-- Input Area -->
+    <div class="input-area">
+        <input id="message" placeholder="Type a message..." />
+        <button onclick="sendMessage()">➤</button>
+        <button onclick="toggleEmoji()">😊</button>
+        <div id="emoji-box" style="display:none;"></div>
+        <button onclick="startRecording()">🎤</button>
+    </div>
+
+</div>
+
+<script>
+    var socket = io();
+    var myName = "";
+
+    socket.on('message', function(data){
+        var item = document.createElement('li');
+
+        myName = document.getElementById('username').value;
+
+        if(data.username === myName){
+            item.className = "my-message";
+            item.id = data.id;
+
+            item.innerHTML = `
+                <span>${data.msg}</span><br>
+                <small>${data.username}</small>
+                <div class="ticks" id="tick-${data.id}">✔</div>
+            `;
+        } else {
+            item.className = "other-message";
+
+            item.innerHTML = `
+                <span>${data.msg}</span><br>
+                <small>${data.username}</small>
+            `;
+
+            // send seen signal
+            socket.emit('seen', {id: data.id});
+        }
+
+        document.getElementById('messages').appendChild(item);
+
+        // auto scroll
+        var chatBox = document.getElementById('chat-box');
+        chatBox.scrollTop = chatBox.scrollHeight;
+    });
+
+    // Delivered ✔✔
+    socket.on('delivered', function(data){
+        var tick = document.getElementById('tick-' + data.id);
+        if(tick){
+            tick.innerHTML = "✔✔";
+        }
+    });
+
+    // Seen ✔✔ (blue)
+    socket.on('seen', function(data){
+        var tick = document.getElementById('tick-' + data.id);
+        if(tick){
+            tick.innerHTML = "✔✔";
+            tick.style.color = "#4fc3f7";  // blue color
+        }
+    });
+
+    function sendMessage(){
+        var msg = document.getElementById('message').value;
+        var username = document.getElementById('username').value;
+
+        if(msg.trim() === "" || username.trim() === "") return;
+
+        socket.send({
+            username: username,
+            msg: msg
+        });
+
+        document.getElementById('message').value = '';
+    }
+
+    document.getElementById("message").addEventListener("keypress", function(e) {
+        if (e.key === "Enter") {
+            sendMessage();
+        }
+    });
+
+// typing event
+let typingTimeout;
+
+document.getElementById("message").addEventListener("input", function() {
+    var username = document.getElementById('username').value;
+
+    socket.emit('typing', {username: username});
+
+    clearTimeout(typingTimeout);
+    typingTimeout = setTimeout(() => {
+        document.getElementById("typing-status").innerText = "";
+    }, 2000);
+});
+
+// show typing
+socket.on('typing', function(data){
+    var myName = document.getElementById('username').value;
+
+    if(data.username !== myName){
+        document.getElementById("typing-status").innerText = data.username + " is typing...";
+    }
+});
+
+
+const emojis = ["😀","😂","😍","😎","😭","😡","👍","🙏","🔥","❤️","💕","🥰","😴","😫","🤩","😚😙😆😜😤😢😠","👿"];
+
+function toggleEmoji(){
+    let box = document.getElementById("emoji-box");
+    box.style.display = box.style.display === "none" ? "block" : "none";
+
+    box.innerHTML = "";
+    emojis.forEach(e => {
+        let span = document.createElement("span");
+        span.innerText = e;
+        span.style.fontSize = "20px";
+        span.style.margin = "5px";
+        span.style.cursor = "pointer";
+
+        span.onclick = () => {
+            document.getElementById("message").value += e;
+        };
+
+        box.appendChild(span);
+    });
+}
+
+let mediaRecorder;
+let audioChunks = [];
+
+async function startRecording(){
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+    mediaRecorder = new MediaRecorder(stream);
+
+    mediaRecorder.start();
+
+    mediaRecorder.ondataavailable = e => {
+        audioChunks.push(e.data);
+    };
+
+    mediaRecorder.onstop = () => {
+        const audioBlob = new Blob(audioChunks);
+        const audioURL = URL.createObjectURL(audioBlob);
+
+        socket.send({
+            username: document.getElementById('username').value,
+            msg: `<audio controls src="${audioURL}"></audio>`
+        });
+
+        audioChunks = [];
+    };
+
+    // stop after 3 sec (you can change)
+    setTimeout(() => {
+        mediaRecorder.stop();
+    }, 3000);
+}
+
+var socket = io();
+
+// join when username entered
+document.getElementById("username").addEventListener("change", function(){
+    var username = this.value;
+    if(username.trim() !== ""){
+        socket.emit('join', {username: username});
+    }
+});
+
+// update user list
+socket.on('user_list', function(users){
+    let list = document.getElementById("users");
+    list.innerHTML = "";
+
+    users.forEach(user => {
+        let li = document.createElement("li");
+        li.innerText = "🟢 " + user;
+        list.appendChild(li);
+    });
+});
+    var socket = io();
+
+    socket.on('connect', function() {
+        console.log("Connected");
+    });
+
+    function sendMessage() {
+        let input = document.getElementById("msg");
+
+        socket.send({
+            msg: input.value
+        });
+
+        input.value = "";
+    }
+
+    socket.on('message', function(data) {
+
+        let li = document.createElement("li");
+
+        li.innerHTML =
+            "<b>" + data.username + ":</b> " + data.msg;
+
+        document.getElementById("messages")
+            .appendChild(li);
+    });
+
+</script>
+
+</body>
+</html>
